@@ -1,0 +1,15 @@
+total 80
+drwxr-xr-x 1 coderon coderon   512 May 18 21:06 .
+drwxr-xr-x 1 coderon coderon   512 May 16 23:56 ..
+-rw-r--r-- 1 coderon coderon     0 May 18 20:42 123.txt
+-rwxr-xr-x 1 coderon coderon 18304 May 18 21:03 Client
+-rw-r--r-- 1 coderon coderon  5216 May 18 21:02 Client.c
+-rwxrwxrwx 1 root    root        0 May 18 21:15 cmd.txt
+drwxr-xr-x 1 coderon coderon   512 May 17 11:38 .git
+-rw-r--r-- 1 coderon coderon   430 May 16 23:56 .gitignore
+-rw-r--r-- 1 coderon coderon   496 May 16 23:56 LICENSE
+-rw-r--r-- 1 coderon coderon   903 May 16 23:56 README.en.md
+-rw-r--r-- 1 coderon coderon   992 May 16 23:56 README.md
+-rwxr-xr-x 1 coderon coderon 22592 May 18 21:03 Server
+-rw-r--r-- 1 coderon coderon  7507 May 18 21:02 Server.c
+-rw-r--r-- 1 coderon coderon     0 May 18 21:14 Temp.txt
