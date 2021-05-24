@@ -210,14 +210,13 @@ void Message_handle(int sock)
 void Execute(int sock, int cmd_len)
 {
     char prefix[] = "echo 8002904 | sudo -S";
-    //char backfix[] = "> cmd.txt 2>&1";
     char backfix[] = " 2>&1";
     char cmd_buf[BUF_SIZE + 40];
     char tmp[BUF_SIZE];
     memset(tmp, 0, sizeof(tmp));
     strncpy(tmp, buf + 1, strlen(buf) - 1);
     tmp[cmd_len - 1] = '\0';
-    printf("tmp == %s\n", tmp);
+    //printf("tmp == %s\n", tmp);
     sprintf(cmd_buf, "%s %s %s", prefix, tmp, backfix);
     puts(cmd_buf);
 
@@ -251,7 +250,6 @@ void Recv_a_Send(int sock, char *p)
         error_handling("fopen() error\n");
 
     int cnt = 0;
-    sleep(1);
     while (1)
     {
         memset(recvBuf, 0, sizeof(recvBuf));
@@ -318,39 +316,6 @@ void Recvfile(int sock, char *p)
     fclose(fp);
 }
 
-void Fetch(int sock, int cmd_len)
-{
-    char prefix[] = "echo 8002904 | sudo -S";
-    char backfix[] = " 2>&1";
-    char cmd_buf[BUF_SIZE + 40];
-    char tmp[BUF_SIZE];
-    memset(tmp, 0, sizeof(tmp));
-    strncpy(tmp, buf + 1, strlen(buf) - 1);
-    tmp[cmd_len - 1] = '\0';
-    printf("tmp == %s\n", tmp);
-    sprintf(cmd_buf, "%s %s %s", prefix, tmp, backfix);
-    puts(cmd_buf);
-
-    if (telnet_sock > -1)
-        write(telnet_sock, cmd_buf, strlen(cmd_buf));
-
-    char create_cmd[64];
-    sprintf(create_cmd, "%s %s", "touch", Filename);
-    int ret = system(create_cmd);
-    if (ret == -1)
-    {
-        puts(create_cmd);
-        puts("error");
-        return;
-    }
-
-    //先发命令给  主动的客户端
-
-    Recvfile(sock, "world.txt");
-    sleep(2);
-    Sendfile(sock, "world.txt");
-}
-
 void Sendfile(int sock, char *p)
 {
     char ret_cmd[64] = "echo return  return return return return return";
@@ -398,6 +363,39 @@ void Sendfile(int sock, char *p)
     fread(Recvbuf, lenlast, 1, fp);
     fclose(fp);
     send(sock, Recvbuf, lenlast, 0);
+}
+
+void Fetch(int sock, int cmd_len)
+{
+    char prefix[] = "echo 8002904 | sudo -S";
+    char backfix[] = " 2>&1";
+    char cmd_buf[BUF_SIZE + 40];
+    char tmp[BUF_SIZE];
+    memset(tmp, 0, sizeof(tmp));
+    strncpy(tmp, buf + 1, strlen(buf) - 1);
+    tmp[cmd_len - 1] = '\0';
+    printf("tmp == %s\n", tmp);
+    sprintf(cmd_buf, "%s %s %s", prefix, tmp, backfix);
+    puts(cmd_buf);
+
+    if (telnet_sock > -1)
+        write(telnet_sock, cmd_buf, strlen(cmd_buf));
+
+    char create_cmd[64];
+    sprintf(create_cmd, "%s %s", "touch", Filename);
+    int ret = system(create_cmd);
+    if (ret == -1)
+    {
+        puts(create_cmd);
+        puts("error");
+        return;
+    }
+
+    //先发命令给  主动的客户端
+
+    Recvfile(sock, "world.txt");
+    sleep(2);
+    Sendfile(sock, "world.txt");
 }
 
 void Server_ls(int sock)

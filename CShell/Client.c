@@ -166,21 +166,6 @@ void Shell()
     }
 }
 
-void ReturnFile(char *filename)
-{
-    // char cmd[32];
-    // memset(cmd, 0, sizeof(cmd));
-    // strcpy(cmd, "return fetch");
-    // write(serv_sock, cmd, strlen(cmd)); //返回命令
-
-    sleep(1);
-    char name[32];
-    // strcpy(name, filename);
-    sprintf(name, "%s", filename);
-    //write(serv_sock, name, 32);
-    Read_a_send(filename);
-}
-
 void Excute()
 {
     //system("echo \"\" > cmd.txt ");
@@ -192,6 +177,15 @@ void Excute()
     //发送文件给Server
     Read_a_send("cmd.txt");
     system("cat cmd.txt");
+}
+
+void ReturnFile(char *filename)
+{
+    sleep(1);
+    char name[32];
+    if (filename != NULL)
+        sprintf(name, "%s", filename);
+    Read_a_send(filename);
 }
 
 void Read_a_send(char *p)
@@ -271,50 +265,6 @@ void RecvFile(char *filename)
     }
     fclose(fp);
     puts("End of Recv\n");
-}
-
-void Read(char *p)
-{
-    char filename[32];
-    sprintf(filename, "%s", p);
-
-    FILE *fp;
-    int totlen;
-    char Recvbuf[buf_SIZE];
-
-    if ((fp = fopen(filename, "rb")) == NULL)
-    {
-        puts("fopen() error\n");
-        return;
-    }
-    fseek(fp, 0, SEEK_END);
-    totlen = ftell(fp);
-
-    //发送文件长度，方便服务器
-    memset(Recvbuf, 0, sizeof(Recvbuf));
-    sprintf(Recvbuf, "%d", totlen);
-    send(serv_sock, Recvbuf, strlen(Recvbuf) + 1, 0);
-
-    int cnt = totlen / SIZE;
-    int len1 = SIZE;
-    int lenlast;
-    if (totlen % SIZE)
-    {
-        lenlast = totlen - cnt * SIZE;
-        cnt = cnt + 1;
-    }
-    rewind(fp);
-
-    for (int i = 0; i < cnt - 1; i++)
-    {
-        fread(Recvbuf, SIZE, 1, fp);
-        sleep(0.1);
-        send(serv_sock, Recvbuf, SIZE, 0);
-        memset(Recvbuf, 0, sizeof(Recvbuf));
-    }
-    fread(Recvbuf, lenlast, 1, fp);
-    fclose(fp);
-    send(serv_sock, Recvbuf, lenlast, 0);
 }
 
 void error_handling(char *message)
