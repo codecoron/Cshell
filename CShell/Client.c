@@ -30,7 +30,7 @@ int telnet_sock = -1;
 
 void error_handling(char *message);
 void Shell();
-void Read_a_send(char *filename);
+void Read_and_send(char *filename);
 void Excute();
 void ReturnFile(char *filename);
 void RecvFile(char *filename);
@@ -146,18 +146,34 @@ void Shell()
             if (p != NULL)
             {
                 sprintf(Filename, "%s", p);
-                Filename[strlen(Filename) - 1] = '\0';
-                printf("fetch filename :%s\n", Filename);
+                //Filename[strlen(Filename) - 1] = '\0';
+                printf("Return fetch filename :%s\n", Filename);
+                ReturnFile(Filename);
+            }
+        }
+        else if (0 == strcmp(cmd, "push"))
+        {
+            p = strtok(NULL, " ");
+            if (p != NULL)
+            {
+                sprintf(Filename, "%s", p);
+                //Filename[strlen(Filename) - 1] = '\0';
+                printf("push filename :%s\n", Filename);
                 ReturnFile(Filename);
             }
         }
         else if (0 == strcmp(cmd, "return"))
         {
-            write(1, "成功fetch文件", strlen("成功fetch文件"));
-            //接受文件
-            char create_cmd[64];
-            sprintf(create_cmd, "%s %s", "touch", "Hello.txt");
-            RecvFile(Filename);
+            p = strtok(NULL, " ");
+            if (p != NULL)
+            {
+                sprintf(Filename, "%s", p);
+                //接受文件
+                char create_cmd[64];
+                sprintf(create_cmd, "%s %s", "touch", Filename);
+                RecvFile(Filename);
+                write(1, "成功fetch文件\n", strlen("成功fetch文件\n"));
+            }
         }
         else if (Recvbuf[0] == 'e')
             Excute();
@@ -175,7 +191,7 @@ void Excute()
     if (ret < 0)
         printf("system() error\n");
     //发送文件给Server
-    Read_a_send("cmd.txt");
+    Read_and_send("cmd.txt");
     system("cat cmd.txt");
 }
 
@@ -185,10 +201,10 @@ void ReturnFile(char *filename)
     char name[32];
     if (filename != NULL)
         sprintf(name, "%s", filename);
-    Read_a_send(filename);
+    Read_and_send(filename);
 }
 
-void Read_a_send(char *p)
+void Read_and_send(char *p)
 {
     char filename[32];
     sprintf(filename, "%s", p);
@@ -204,7 +220,7 @@ void Read_a_send(char *p)
     }
     fseek(fp, 0, SEEK_END);
     totlen = ftell(fp);
-
+    printf("Debug Send FileSize %d\n", totlen);
     //发送文件长度，方便服务器
     memset(Recvbuf, 0, sizeof(Recvbuf));
     sprintf(Recvbuf, "%d", totlen);
@@ -232,16 +248,23 @@ void Read_a_send(char *p)
     send(serv_sock, Recvbuf, lenlast, 0);
 }
 
-void RecvFile(char *filename)
+void RecvFile(char *p)
 {
+    char filename[32];
+    if (p != NULL)
+        sprintf(filename, "%s", p);
+
     char recvBuf[buf_SIZE];
     int ret = read(serv_sock, recvBuf, buf_SIZE);
     int Total = atoi(recvBuf); //先接收，文件大小
-    //接受
+    printf("Deubug Recv FileSize %d\n", Total);
     FILE *fp;
-    fp = fopen("Hello.txt", "wb");
+    fp = fopen(filename, "wb");
     if (fp == NULL)
-        error_handling("fopen() error\n");
+    {
+        puts("fopen() error\n");
+        return;
+    }
 
     int cnt = 0;
     sleep(0.5);
@@ -250,21 +273,21 @@ void RecvFile(char *filename)
         memset(recvBuf, 0, sizeof(recvBuf));
         ret = read(serv_sock, recvBuf, SIZE);
         fwrite(recvBuf, ret, 1, fp);
-        if (recvBuf[0] == '\0')
-        {
-            printf("recvBuf[0] == 0\n");
-            printf("ret == %d\n", ret);
-        }
-        else
-        {
-            printf("recvBuf[0] = %c\n", recvBuf[0]);
-        }
+        // if (recvBuf[0] == '\0')
+        // {
+        //     printf("Debug recvBuf[0] == 0\n");
+        //     printf("Debug ret == %d\n", ret);
+        // }
+        // else
+        // {
+        //     printf("recvBuf[0] = %c\n", recvBuf[0]);
+        // }
         cnt += ret;
         if (cnt >= Total || ret == -1)
             break;
     }
     fclose(fp);
-    puts("End of Recv\n");
+    puts("End of Recv");
 }
 
 void error_handling(char *message)

@@ -18,7 +18,7 @@ int clnt_socks[Max_clnt_cnt];               //客户端的socket数组
 struct sockaddr_in clnt_adrs[Max_clnt_cnt]; //客户端socket数组对应的ip地址
 char clnt_Name[Max_clnt_cnt][NameSize];     //名字数组
 int telnet_sock = -1;                       //远程连接的socket号
-int self_sock = -1;
+int self_sock = -1;                         //主动telnet别人的socket号
 
 /*要连接的服务器信息*/
 int serv_sock;               //服务器socket
@@ -31,17 +31,16 @@ int fd_max;
 
 /*全局缓冲区*/
 char buf[BUF_SIZE];
-
-char password[Passwdsize];
-char Filename[NameSize];
+char password[Passwdsize]; //存储被telnet的密码
+char Filename[NameSize];   //存储Fetch的文件名
 
 void error_handling(char *message);
 void socket_handling();
 void Execute(int sock, int cmd_len);
 void Message_handle(int sock);
 void Server_ls(int sock);
-void Recv_a_Send(int sock, char *filename);
-void Fetch(int sock, int cmd_len);
+void Recv_and_Send(int sock, char *filename);
+void Fetch(int mysock, int target_sock, int cmd_len);
 void Sendfile(int sock, char *p);
 
 int main(int argc, char *argv[])
@@ -72,14 +71,9 @@ int main(int argc, char *argv[])
     {
         /* SELECT 处理连接 */
         cpy_reads = reads;
-        // struct timeval time_out;
-        // time_out.tv_sec = 2;
-        // time_out.tv_usec = 0;
         int ret = select(fd_max + 1, &cpy_reads, NULL, NULL, NULL);
         if (ret == -1)
             error_handling("select() error\n");
-        // else if (ret == 0)
-        // continue;
         else
             socket_handling();
     }
@@ -137,7 +131,6 @@ void socket_handling()
                 {
                     printf("buf[0] = %c\n", buf[0]);
 
-                    //如果客户端返回return fetch命令，我就可以提取第一个单词，看是不是return
                     char temp[BUF_SIZE];
                     memcpy(temp, buf, sizeof(buf));
                     char *p;
@@ -146,31 +139,44 @@ void socket_handling()
                     if (p != NULL)
                     {
                         sprintf(retcmd, "%s", p + 1);
-                        printf("retcmd :%s\n", retcmd);
+                        // printf("Debug retcmd :%s\n", retcmd);
                     }
 
-                    if (buf[0] == '$') //执行服务端命令
-                    {
-                        if (buf[1] == 'l' && buf[2] == 's')
-                            Server_ls(i); //处理  服务端「$ls」 命令
-                    }
-                    else if (buf[0] == ':' && 0 == strcmp(retcmd, "fetch"))
-                    { //TODO 服务端要把文件接受下来，再发送
-                        p = strtok(NULL, " ");
-                        sprintf(Filename, "%s", p);
-                        printf("filename :%s\n", Filename);
-                        Fetch(i, str_len);
-                    }
+                    if (0 == strcmp(buf, "$ls\n")) //处理  服务端「$ls」 命令
+                        Server_ls(i);
                     else if (buf[0] == ':' && 0 == strcmp(retcmd, "telnet"))
                     {
                         p = strtok(NULL, " ");
                         if (p != NULL)
                             telnet_sock = atoi(p);
                         self_sock = i;
-                        printf("telsock = %d\n", telnet_sock);
+                        printf("Client [%d] want to telnet  Client [%d]\n", i, telnet_sock);
+                    }
+                    else if (buf[0] == ':' && 0 == strcmp(retcmd, "fetch"))
+                    {
+                        p = strtok(NULL, " ");
+                        if (p != NULL)
+                        {
+                            sprintf(Filename, "%s", p);
+                            Filename[strlen(Filename) - 1] = '\0';
+                        }
+                        printf("Client [%d] want to Fetch filename :%s From Client [%d]\n", i, Filename, telnet_sock);
+                        Fetch(i, telnet_sock, str_len - 1);
+                    }
+                    else if (buf[0] == ':' && 0 == strcmp(retcmd, "push"))
+                    {
+                        p = strtok(NULL, " ");
+                        if (p != NULL)
+                        {
+                            sprintf(Filename, "%s", p);
+                            Filename[strlen(Filename) - 1] = '\0';
+                        }
+
+                        printf("Client [%d] push filename :%s to Client [%d]\n", i, Filename, telnet_sock);
+                        Fetch(telnet_sock, i, str_len - 1);
                     }
                     else if (buf[0] == ':') //执行客户端命令
-                        Execute(i, str_len);
+                        Execute(i, str_len - 1);
                     else
                         Message_handle(i);
                 }
@@ -207,47 +213,64 @@ void Message_handle(int sock)
     }
 }
 
-void Execute(int sock, int cmd_len)
+char *command_cat(int cmd_len)
 {
     char prefix[] = "echo 8002904 | sudo -S";
     char backfix[] = " 2>&1";
-    char cmd_buf[BUF_SIZE + 40];
+    // char cmd_buf[BUF_SIZE + 40];
+    char *cmd_buf = (char *)malloc(BUF_SIZE + 40);
     char tmp[BUF_SIZE];
     memset(tmp, 0, sizeof(tmp));
     strncpy(tmp, buf + 1, strlen(buf) - 1);
     tmp[cmd_len - 1] = '\0';
-    //printf("tmp == %s\n", tmp);
+    //printf("Debug tmp == %s\n", tmp);
     sprintf(cmd_buf, "%s %s %s", prefix, tmp, backfix);
     puts(cmd_buf);
+    return cmd_buf;
+}
 
-    if (telnet_sock > -1)
-        write(telnet_sock, cmd_buf, strlen(cmd_buf));
+void Execute(int sock, int cmd_len)
+{
+    if (telnet_sock < 0)
+    {
+        printf("telnet error\n");
+        return;
+    }
+
+    char *p = command_cat(cmd_len);
+    char cmd_buf[BUF_SIZE + 40];
+    memcpy(cmd_buf, p, BUF_SIZE + 40);
+
+    write(telnet_sock, cmd_buf, strlen(cmd_buf));
     int ret = system("touch Temp.txt");
     if (ret == -1)
     {
         puts("system(\"touch Temp.txt\") error");
         return;
     }
-    Recv_a_Send(sock, "Temp.txt");
+    Recv_and_Send(sock, "Temp.txt");
 }
 
-void Recv_a_Send(int sock, char *p)
+void Recv_and_Send(int sock, char *p)
 {
     char filename[32];
     if (p != NULL)
         sprintf(filename, "%s", p);
-    printf("filename:%s\n", filename);
+    printf("Debug Recv and Send filename:%s\n", filename);
 
     char recvBuf[BUF_SIZE];
     int ret;
     if (telnet_sock > -1)
         ret = recv(telnet_sock, recvBuf, BUF_SIZE, 0);
     int Total = atoi(recvBuf); //先接收，文件大小
-    //接受
+    printf("Debug Recv FileSize %d\n", Total);
     FILE *fp;
     fp = fopen(filename, "wb");
     if (fp == NULL)
-        error_handling("fopen() error\n");
+    {
+        printf("foepn() error\n");
+        return;
+    }
 
     int cnt = 0;
     while (1)
@@ -256,15 +279,15 @@ void Recv_a_Send(int sock, char *p)
         if (telnet_sock > -1)
             ret = read(telnet_sock, recvBuf, SIZE);
         fwrite(recvBuf, ret, 1, fp);
-        if (recvBuf[0] == '\0')
-        {
-            printf("recvBuf[0] == 0\n");
-            printf("ret == %d\n", ret);
-        }
-        else
-        {
-            printf("recvBuf[0] = %c\n", recvBuf[0]);
-        }
+        // if (Debug recvBuf[0] == '\0')
+        // {
+        //     printf("Debug recvBuf[0] == 0\n");
+        //     printf("Debug ret == %d\n", ret);
+        // }
+        // else
+        // {
+        //     printf("Debug recvBuf[0] = %c\n", recvBuf[0]);
+        // }
         write(sock, recvBuf, ret); //接完就发
         cnt += ret;
         if (cnt >= Total || ret == -1)
@@ -274,19 +297,19 @@ void Recv_a_Send(int sock, char *p)
     fclose(fp);
 }
 
-void Recvfile(int sock, char *p)
+void Recvfile(int target_sock, char *p)
 {
     char filename[32];
     if (p != NULL)
         sprintf(filename, "%s", p);
-    printf("filename:%s\n", filename);
+
+    printf("Debug Recv filename:%s\n", filename);
 
     char recvBuf[BUF_SIZE];
     int ret;
-    if (telnet_sock > -1)
-        ret = recv(telnet_sock, recvBuf, BUF_SIZE, 0);
+    ret = recv(target_sock, recvBuf, BUF_SIZE, 0);
     int Total = atoi(recvBuf); //先接收，文件大小
-    //接受
+    printf("Debug Recv FileSize %d\n", Total);
     FILE *fp;
     fp = fopen(filename, "wb");
     if (fp == NULL)
@@ -297,18 +320,17 @@ void Recvfile(int sock, char *p)
     while (1)
     {
         memset(recvBuf, 0, sizeof(recvBuf));
-        if (telnet_sock > -1)
-            ret = read(telnet_sock, recvBuf, SIZE);
+        ret = read(target_sock, recvBuf, SIZE);
         fwrite(recvBuf, ret, 1, fp);
-        if (recvBuf[0] == '\0')
-        {
-            printf("recvBuf[0] == 0\n");
-            printf("ret == %d\n", ret);
-        }
-        else
-        {
-            printf("recvBuf[0] = %c\n", recvBuf[0]);
-        }
+        // if (recvBuf[0] == '\0')
+        // {
+        //     printf("Debug recvBuf[0] == 0\n");
+        //     printf("Debug ret == %d\n", ret);
+        // }
+        // else
+        // {
+        //     printf("Debug recvBuf[0] = %c\n", recvBuf[0]);
+        // }
         cnt += ret;
         if (cnt >= Total || ret == -1)
             break;
@@ -316,14 +338,17 @@ void Recvfile(int sock, char *p)
     fclose(fp);
 }
 
-void Sendfile(int sock, char *p)
+void Sendfile(int target_sock, char *p)
 {
-    char ret_cmd[64] = "echo return  return return return return return";
-    write(sock, ret_cmd, strlen(ret_cmd));
-    write(1, ret_cmd, strlen(ret_cmd));
-    sleep(1);
     char filename[32];
     sprintf(filename, "%s", p);
+
+    char tmp_cmd[64] = "echo return  return return return return "; //发送命令是为了让客户端，知道这是给他的，让他准备接收
+    char cmd[128];
+    sprintf(cmd, "%s %s", tmp_cmd, filename);
+    write(target_sock, cmd, strlen(cmd));
+    write(1, cmd, strlen(cmd));
+    sleep(1);
 
     FILE *fp;
     int totlen;
@@ -336,11 +361,11 @@ void Sendfile(int sock, char *p)
     }
     fseek(fp, 0, SEEK_END);
     totlen = ftell(fp);
-
+    printf("Debug Send FileSize %d\n", totlen);
     //发送文件长度，方便客户端
     memset(Recvbuf, 0, sizeof(Recvbuf));
     sprintf(Recvbuf, "%d", totlen);
-    write(sock, Recvbuf, strlen(Recvbuf) + 1);
+    write(target_sock, Recvbuf, strlen(Recvbuf) + 1);
 
     sleep(1);
     int cnt = totlen / SIZE;
@@ -357,29 +382,33 @@ void Sendfile(int sock, char *p)
     {
         fread(Recvbuf, SIZE, 1, fp);
         sleep(0.1);
-        send(sock, Recvbuf, SIZE, 0);
+        send(target_sock, Recvbuf, SIZE, 0);
         memset(Recvbuf, 0, sizeof(Recvbuf));
     }
     fread(Recvbuf, lenlast, 1, fp);
     fclose(fp);
-    send(sock, Recvbuf, lenlast, 0);
+    send(target_sock, Recvbuf, lenlast, 0);
+    printf("Send to [%d] OK\n", target_sock);
 }
 
-void Fetch(int sock, int cmd_len)
-{
-    char prefix[] = "echo 8002904 | sudo -S";
-    char backfix[] = " 2>&1";
-    char cmd_buf[BUF_SIZE + 40];
-    char tmp[BUF_SIZE];
-    memset(tmp, 0, sizeof(tmp));
-    strncpy(tmp, buf + 1, strlen(buf) - 1);
-    tmp[cmd_len - 1] = '\0';
-    printf("tmp == %s\n", tmp);
-    sprintf(cmd_buf, "%s %s %s", prefix, tmp, backfix);
-    puts(cmd_buf);
+/* 
+ 从 target_socket 那里Fetch 文件 到 mysock
+ cmd_len 是命令长度
+ */
 
-    if (telnet_sock > -1)
-        write(telnet_sock, cmd_buf, strlen(cmd_buf));
+void Fetch(int mysock, int target_sock, int cmd_len)
+{
+    if (telnet_sock < 0)
+    {
+        printf("telnet error\n");
+        return;
+    }
+
+    char *p = command_cat(cmd_len);
+    char cmd_buf[BUF_SIZE + 40];
+    memcpy(cmd_buf, p, BUF_SIZE + 40);
+
+    write(target_sock, cmd_buf, strlen(cmd_buf)); //发送命令
 
     char create_cmd[64];
     sprintf(create_cmd, "%s %s", "touch", Filename);
@@ -392,10 +421,9 @@ void Fetch(int sock, int cmd_len)
     }
 
     //先发命令给  主动的客户端
-
-    Recvfile(sock, "world.txt");
+    Recvfile(target_sock, Filename);
     sleep(2);
-    Sendfile(sock, "world.txt");
+    Sendfile(mysock, Filename);
 }
 
 void Server_ls(int sock)
