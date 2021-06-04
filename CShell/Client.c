@@ -25,6 +25,8 @@ char Recvbuf[buf_SIZE];
 char Name[NameSize]; //名字
 char Inputbuf[buf_SIZE / 2];
 char Filename[NameSize];
+char stageInput[buf_SIZE];
+int still_input_flag = -1;
 
 int telnet_sock = -1;
 
@@ -54,6 +56,10 @@ int main(int argc, char *argv[])
     printf("Name:%s\n", Name);
     printf("Connect Ok ServerIp %s \t%d\n", inet_ntoa(serv_adr.sin_addr), ntohs(serv_adr.sin_port));
 
+    char OnlineMsg[40];
+    sprintf(OnlineMsg, "[%s] %s\n", Name, "Join");
+    write(serv_sock, OnlineMsg, sizeof(OnlineMsg));
+
     FD_ZERO(&reads);
     fd_max = serv_sock;
     FD_SET(0, &reads);
@@ -65,7 +71,7 @@ int main(int argc, char *argv[])
         int ret = select(fd_max + 1, &cpy_reads, NULL, NULL, NULL);
 
         if (ret == -1)
-            error_handling("select() error");
+            error_handling("select() error\n");
         else
             Shell();
     }
@@ -75,7 +81,6 @@ int main(int argc, char *argv[])
 
 void Shell()
 {
-
     if (FD_ISSET(0, &cpy_reads)) //从键盘读取数据
     {
         memset(Recvbuf, 0, buf_SIZE);
@@ -139,7 +144,13 @@ void Shell()
             sprintf(cmd, "%s", p);
 
         if (Recvbuf[0] == '[') ////默认为聊天
+        {
+            // fgets(stageInput, 1, stdin);
+            // still_input_flag = scanf("%s", stageInput);
+            // fflush(stdin);
+            // still_input_flag = read(0, stageInput, buf_SIZE);
             write(1, Recvbuf, sizeof(Recvbuf));
+        }
         else if (0 == strcmp(cmd, "fetch"))
         {
             p = strtok(NULL, " ");
@@ -179,6 +190,12 @@ void Shell()
             Excute();
         else if (Recvbuf[0] != '[')
             write(1, Recvbuf, sizeof(Recvbuf));
+
+        // if (still_input_flag > 0)
+        // {
+        //     printf("接着输入\n");
+        //     fputs(stageInput, stdout);
+        // }
     }
 }
 

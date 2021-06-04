@@ -19,7 +19,8 @@ struct sockaddr_in clnt_adrs[Max_clnt_cnt]; //客户端socket数组对应的ip�
 char clnt_Name[Max_clnt_cnt][NameSize];     //名字数组
 int telnet_sock = -1;                       //远程连接的socket号
 int self_sock = -1;                         //主动telnet别人的socket号
-
+char password[Max_clnt_cnt][20];            //存储telnet时的密码
+int telnet_socks[Max_clnt_cnt];
 /*要连接的服务器信息*/
 int serv_sock;               //服务器socket
 struct sockaddr_in serv_adr; //服务器地址
@@ -31,8 +32,7 @@ int fd_max;
 
 /*全局缓冲区*/
 char buf[BUF_SIZE];
-char password[Passwdsize]; //存储被telnet的密码
-char Filename[NameSize];   //存储Fetch的文件名
+char Filename[NameSize]; //存储Fetch的文件名
 
 void error_handling(char *message);
 void socket_handling();
@@ -42,6 +42,7 @@ void Server_ls(int sock);
 void Recv_and_Send(int sock, char *filename);
 void Fetch(int mysock, int target_sock, int cmd_len);
 void Sendfile(int sock, char *p);
+char *command_cat(int cmd_len, int sock);
 
 int main(int argc, char *argv[])
 {
@@ -97,9 +98,9 @@ void socket_handling()
                 Recvtimeout.tv_sec = 3;
                 Recvtimeout.tv_usec = 0;
                 setsockopt(tongxunsock, SOL_SOCKET, SO_RCVTIMEO, &Recvtimeout, sizeof(Recvtimeout));
-
-                clnt_adrs[clnt_cnt++] = tmp_cln_adr;
-                clnt_socks[clnt_cnt - 1] = tongxunsock;
+                clnt_cnt++;
+                clnt_adrs[tongxunsock] = tmp_cln_adr;
+                clnt_socks[tongxunsock] = tongxunsock;
                 FD_SET(tongxunsock, &reads);
                 if (fd_max < tongxunsock)
                     fd_max = tongxunsock;
@@ -116,6 +117,9 @@ void socket_handling()
                     printf("client:%d 断开连接\n", i);
                     FD_CLR(i, &reads);
                     close(i);
+                    if (i == fd_max)
+                        fd_max--;
+                    clnt_cnt--;
                     int location;
                     for (int k = 0; k < sizeof(clnt_socks); k++) //TODO 这里只是将某个数组上的位置置0，可以做到移动数组
                     {
@@ -124,35 +128,47 @@ void socket_handling()
                             clnt_socks[k] = -1;
                             clnt_adrs[k].sin_addr.s_addr = 0;
                             clnt_adrs[k].sin_port = 0;
+                            memset(clnt_Name[i], 0, sizeof(clnt_Name[i]));
                         }
                     }
                 }
                 else //对客户端的数据进行处理
                 {
-                    printf("buf[0] = %c\n", buf[0]);
+                    printf("Debug buf[0] = %c\n", buf[0]);
 
                     char temp[BUF_SIZE];
                     memcpy(temp, buf, sizeof(buf));
                     char *p;
                     p = strtok(temp, " ");
-                    char retcmd[32];
+                    char cmd[32];
                     if (p != NULL)
                     {
-                        sprintf(retcmd, "%s", p + 1);
-                        // printf("Debug retcmd :%s\n", retcmd);
+                        sprintf(cmd, "%s", p + 1);
+                        // printf("Debug cmd :%s\n", cmd);
                     }
 
                     if (0 == strcmp(buf, "$ls\n")) //处理  服务端「$ls」 命令
                         Server_ls(i);
-                    else if (buf[0] == ':' && 0 == strcmp(retcmd, "telnet"))
+                    else if (buf[0] == ':' && 0 == strcmp(cmd, "telnet"))
                     {
                         p = strtok(NULL, " ");
                         if (p != NULL)
+                        {
+                            telnet_socks[i] = atoi(p);
                             telnet_sock = atoi(p);
+                        }
                         self_sock = i;
-                        printf("Client [%d] want to telnet  Client [%d]\n", i, telnet_sock);
+
+                        p = strtok(NULL, " ");
+                        if (p != NULL)
+                        {
+                            strcpy(password[telnet_sock], p);
+                            password[telnet_sock][strlen(p) - 1] = '\0';
+                        }
+                        strcpy(password[i], "DefaultPassword"); //这是一个巨大的BUG
+                        printf("Client [%d] want to telnet  Client [%d] password %s\n", i, telnet_sock, password[i]);
                     }
-                    else if (buf[0] == ':' && 0 == strcmp(retcmd, "fetch"))
+                    else if (buf[0] == ':' && 0 == strcmp(cmd, "fetch"))
                     {
                         p = strtok(NULL, " ");
                         if (p != NULL)
@@ -163,7 +179,7 @@ void socket_handling()
                         printf("Client [%d] want to Fetch filename :%s From Client [%d]\n", i, Filename, telnet_sock);
                         Fetch(i, telnet_sock, str_len - 1);
                     }
-                    else if (buf[0] == ':' && 0 == strcmp(retcmd, "push"))
+                    else if (buf[0] == ':' && 0 == strcmp(cmd, "push"))
                     {
                         p = strtok(NULL, " ");
                         if (p != NULL)
@@ -208,14 +224,19 @@ void Message_handle(int sock)
         if (j != sock)
         {
             write(j, buf, strlen(buf));
-            printf("返回数据给 %s --> client:%d", buf, j);
+            printf("返回数据 %s --> client:%d", buf, j);
         }
     }
 }
 
-char *command_cat(int cmd_len)
+char *command_cat(int cmd_len, int sock)
 {
-    char prefix[] = "echo student | sudo -S";
+    int paswdsize = sizeof(password[sock]);
+    char password_suit[paswdsize];
+    memcpy(password_suit, password[sock], paswdsize);
+
+    char prefix[50];
+    sprintf(prefix, "%s %s %s", "echo", password_suit, "| sudo -S");
     char backfix[] = " 2>&1";
     // char cmd_buf[BUF_SIZE + 40];
     char *cmd_buf = (char *)malloc(BUF_SIZE + 40);
@@ -237,7 +258,7 @@ void Execute(int sock, int cmd_len)
         return;
     }
 
-    char *p = command_cat(cmd_len);
+    char *p = command_cat(cmd_len, telnet_sock);
     char cmd_buf[BUF_SIZE + 40];
     memcpy(cmd_buf, p, BUF_SIZE + 40);
 
@@ -404,7 +425,7 @@ void Fetch(int mysock, int target_sock, int cmd_len)
         return;
     }
 
-    char *p = command_cat(cmd_len);
+    char *p = command_cat(cmd_len, target_sock);
     char cmd_buf[BUF_SIZE + 40];
     memcpy(cmd_buf, p, BUF_SIZE + 40);
 
@@ -428,24 +449,27 @@ void Fetch(int mysock, int target_sock, int cmd_len)
 
 void Server_ls(int sock)
 {
-    for (int k = 0; k < clnt_cnt; k++)
+    for (int k = 0; k < fd_max + 1; k++)
     {
-        char hostMess[50];
-        char port[8];
-        char sockNum[8];
-        char Name[32];
-        strcpy(hostMess, inet_ntoa(clnt_adrs[k].sin_addr));
-        strcat(hostMess, "\t");
-        sprintf(port, "%d", ntohs(clnt_adrs[k].sin_port));
-        strcat(port, "\t");
-        strcat(hostMess, port);
-        strcat(hostMess, "sockNum\t");
-        sprintf(sockNum, "%d", clnt_socks[k]);
-        strcat(hostMess, sockNum);
-        strcat(hostMess, "\t");
-        strcat(hostMess, clnt_Name[k + 4]);
-        strcat(hostMess, "\n");
-        send(sock, hostMess, strlen(hostMess), 0);
+        if (clnt_socks[k] > 2)
+        {
+            char hostMess[50];
+            char port[8];
+            char sockNum[8];
+            char Name[32];
+            strcpy(hostMess, inet_ntoa(clnt_adrs[k].sin_addr));
+            strcat(hostMess, "\t");
+            sprintf(port, "%d", ntohs(clnt_adrs[k].sin_port));
+            strcat(port, "\t");
+            strcat(hostMess, port);
+            strcat(hostMess, "sockNum\t");
+            sprintf(sockNum, "%d", clnt_socks[k]);
+            strcat(hostMess, sockNum);
+            strcat(hostMess, "\t");
+            strcat(hostMess, clnt_Name[k]);
+            strcat(hostMess, "\n");
+            send(sock, hostMess, strlen(hostMess), 0);
+        }
     }
 }
 
