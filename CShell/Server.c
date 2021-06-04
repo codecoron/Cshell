@@ -215,7 +215,7 @@ void Message_handle(int sock)
 
 char *command_cat(int cmd_len)
 {
-    char prefix[] = "echo 8002904 | sudo -S";
+    char prefix[] = "echo student | sudo -S";
     char backfix[] = " 2>&1";
     // char cmd_buf[BUF_SIZE + 40];
     char *cmd_buf = (char *)malloc(BUF_SIZE + 40);
