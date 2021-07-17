@@ -114,7 +114,7 @@ void socket_handling()
                 sleep(0.2); //睡0.2秒确保一次性收取所有信息
                 int str_len;
                 memset(buf, 0, BUF_SIZE);
-                str_len = read(i, buf, BUF_SIZE);
+                str_len = read(i, buf, BUF_SIZE-1);
                 if (str_len == 0) //有客户端断开连接
                 {
                     printf("client:%d 断开连接\n", i);
