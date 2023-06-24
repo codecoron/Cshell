@@ -12,13 +12,13 @@
 - Server.c
 - Client.c
 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
 
 ## 编译
 - `gcc -std=c99 Server.c -o Server`
 - `gcc -std=c99 Client.c -o Client`
 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
 
 ## 使用说明
 ### 启动
@@ -64,7 +64,7 @@ Example
     padding: 2px;">客户端连接</div>
 </center>
 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
 
 ### 群聊功能
 > 在此之前，再打开一个客户端，重复之前操作即可
@@ -84,7 +84,6 @@ Example
     padding: 2px;">聊天功能</div>
 </center>
 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
 
 ### telnet远程控制功能
 #### `$`使用
@@ -118,7 +117,7 @@ Example
 
 > 不必在意为啥第一个地址是 `0.0.0.0 0`,我试了很多次，每次第一个地址都是0，大概因为我是在本机测试的。请放心，该程序已经在局域网的多台机器上测试过。
 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
 
 #### `:`使用
 > `:`代表远程客户端要执行的命令
@@ -151,7 +150,7 @@ Example
 
 > 需要注意一点，执行这些命令大部分都要加一个后缀 `> cmd.txt`  
 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
 
 - Linux下常用的命令
 
@@ -189,7 +188,6 @@ Example
 </center>
 
 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
 
 
 - 自定义的命令
@@ -234,7 +232,7 @@ Example
     padding: 2px;">push</div>
 </center>
 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
 
 --- 
 - 我测试过的一些Linux常用命令,以Centos 为例
@@ -257,7 +255,7 @@ Example
 
 
 --- 
-<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
 # 其它
 看完前面,大致上你可以知道软件是如何使用了，下面我说一说原理和遇到的难题，以及可以做一些有趣的事情。有兴趣的可以接着看。
 
